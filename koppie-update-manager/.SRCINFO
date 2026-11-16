@@ -1,0 +1,16 @@
+pkgbase = koppie-update-manager
+	pkgdesc = System update center for Koppie Linux (stable rolling release)
+	pkgver = 1.0.0
+	pkgrel = 6
+	url = https://github.com/maularaihan-git/koppie-repo
+	arch = any
+	license = GPL
+	depends = python
+	depends = tk
+	depends = libnotify
+	depends = python-pillow
+	optdepends = pacman-contrib: Speed up update checks with checkupdates
+	source = koppie-update-manager-1.0.0.tar.gz::https://raw.githubusercontent.com/maularaihan-git/koppie-repo/main/pkg-sources/koppie-update-manager/koppie-update-manager-1.0.0.tar.gz
+	sha256sums = 4046f605232b4de580c3a84c6b96f0924b3a59da715512e0f33fa0d8140e0824
+
+pkgname = koppie-update-manager

@@ -1,0 +1,42 @@
+# Maintainer: Raihan <maularaihan-git>
+pkgname=koppie-software-centre
+pkgver=0.3
+pkgrel=2
+pkgdesc="Light GNOME Software-style app store for pacman, AUR and Flatpak"
+arch=('any')
+url="https://github.com/maularaihan-git/koppie-repo"
+license=('GPL')
+depends=('python' 'python-pyqt6' 'polkit' 'flatpak' 'pacman-contrib' 'archlinux-appstream-data')
+optdepends=(
+    'yay: search and install AUR packages'
+)
+source=("$pkgname-$pkgver.tar.gz::https://raw.githubusercontent.com/maularaihan-git/koppie-repo/main/pkg-sources/$pkgname/$pkgname-$pkgver.tar.gz")
+sha256sums=('62e859b41b7cfd650b41c1896b37b4a341c41d8a27bf7545af10e0445fe1469d')
+
+package() {
+    cd "$srcdir/koppie-software-centre"
+
+    # Python application
+    install -d "$pkgdir/usr/share/koppie-software-centre"
+    cp -r koppie_sc "$pkgdir/usr/share/koppie-software-centre/"
+
+    # Launcher
+    install -d "$pkgdir/usr/bin"
+    cat << 'EOF' > "$pkgdir/usr/bin/koppie-software-centre"
+#!/bin/sh
+# Launcher for Koppie Software Centre
+export PYTHONPATH="/usr/share/koppie-software-centre${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m koppie_sc "$@"
+EOF
+    chmod +x "$pkgdir/usr/bin/koppie-software-centre"
+
+    # Menu entry
+    install -Dm644 koppie-software-centre.desktop \
+        "$pkgdir/usr/share/applications/koppie-software-centre.desktop"
+
+    # Icons in every size, so it shows up in the Application Launcher and taskbar
+    for size in 16 22 32 48 64 128 256 512; do
+        install -Dm644 "icons/koppie-software-centre-$size.png" \
+            "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/koppie-software-centre.png"
+    done
+}

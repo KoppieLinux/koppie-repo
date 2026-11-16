@@ -1,0 +1,96 @@
+# Maintainer: Raihan <maularaihan-git>
+pkgname=koppie-update-manager
+pkgver=1.0.0
+pkgrel=7
+pkgdesc="System update center for Koppie Linux (stable rolling release)"
+arch=('any')
+url="https://github.com/maularaihan-git/koppie-repo"
+license=('GPL')
+depends=('python' 'tk' 'libnotify' 'python-pillow')
+optdepends=(
+    'pacman-contrib: Speed up update checks with checkupdates'
+)
+source=("$pkgname-$pkgver.tar.gz::https://raw.githubusercontent.com/maularaihan-git/koppie-repo/main/pkg-sources/$pkgname/$pkgname-$pkgver.tar.gz")
+sha256sums=('4046f605232b4de580c3a84c6b96f0924b3a59da715512e0f33fa0d8140e0824')
+
+package() {
+    install -d "$pkgdir/usr/share/koppie/koppie-update-manager"
+    install -d "$pkgdir/usr/bin"
+    install -d "$pkgdir/usr/share/applications"
+    install -d "$pkgdir/usr/lib/systemd/user"
+    install -d "$pkgdir/usr/share/icons/hicolor/512x512/apps"
+    install -d "$pkgdir/usr/share/pixmaps"
+
+    # Copy application script and libraries
+    cp -r "$srcdir/app/"* "$pkgdir/usr/share/koppie/koppie-update-manager/"
+
+    # Install app icon (Papirus update-manager artwork)
+    install -m644 "$srcdir/app/assets/koppie-update-manager-icon.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/koppie-update-manager.png"
+    install -m644 "$srcdir/app/assets/koppie-update-manager-icon.png" "$pkgdir/usr/share/pixmaps/koppie-update-manager.png"
+
+    # Main wrapper script in /usr/bin
+    cat << 'EOF' > "$pkgdir/usr/bin/koppie-update-manager"
+#!/usr/bin/env bash
+python3 /usr/share/koppie/koppie-update-manager/koppie_update_manager.py "$@"
+EOF
+    chmod +x "$pkgdir/usr/bin/koppie-update-manager"
+
+    # Release channel switcher (stable = 7-day ALA snapshot, current = mirrors)
+    install -m755 "$srcdir/app/koppie-update-channel.sh" "$pkgdir/usr/bin/koppie-update-channel"
+
+    # Weekly notifier script
+    cat << 'EOF' > "$pkgdir/usr/bin/koppie-update-notifier"
+#!/usr/bin/env bash
+ping -q -c 1 1.1.1.1 >/dev/null 2>&1 || exit 0
+
+if command -v checkupdates >/dev/null 2>&1; then
+    UPDATES=$(checkupdates 2>/dev/null | wc -l)
+else
+    UPDATES=$(pacman -Qu 2>/dev/null | wc -l)
+fi
+
+if [ "$UPDATES" -gt 0 ]; then
+    notify-send "Koppie Update Manager" \
+        "$UPDATES system updates are available.\nOpen Koppie Update Manager to install them." \
+        -i system-software-update \
+        -a "Koppie Linux"
+fi
+EOF
+    chmod +x "$pkgdir/usr/bin/koppie-update-notifier"
+
+    # Desktop file
+    cat << 'EOF' > "$pkgdir/usr/share/applications/koppie-update-manager.desktop"
+[Desktop Entry]
+Name=Koppie Update Manager
+Comment=Manage system updates for Koppie Linux (stable rolling release)
+Exec=koppie-update-manager
+Icon=koppie-update-manager
+Terminal=false
+Type=Application
+Categories=System;Settings;
+StartupNotify=true
+StartupWMClass=koppie-update-manager
+EOF
+
+    # Systemd user service & timer for weekly notifications
+    cat << 'EOF' > "$pkgdir/usr/lib/systemd/user/koppie-update-notifier.service"
+[Unit]
+Description=Koppie Update Notifier Service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/koppie-update-notifier
+EOF
+
+    cat << 'EOF' > "$pkgdir/usr/lib/systemd/user/koppie-update-notifier.timer"
+[Unit]
+Description=Weekly Koppie Linux update reminder
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+}

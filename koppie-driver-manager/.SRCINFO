@@ -1,0 +1,18 @@
+pkgbase = koppie-driver-manager
+	pkgdesc = Automatic hardware detection and driver manager for Koppie Linux
+	pkgver = 1.0.0
+	pkgrel = 7
+	url = https://github.com/maularaihan-git/koppie-repo
+	arch = any
+	license = GPL
+	depends = python
+	depends = tk
+	depends = python-pillow
+	optdepends = linux-headers: headers for building DKMS modules (standard kernel)
+	optdepends = linux-lts-headers: headers for building DKMS modules (LTS kernel)
+	optdepends = broadcom-wl-dkms: Broadcom Wi-Fi driver for MacBooks and select laptops
+	optdepends = nvidia-open-dkms: NVIDIA proprietary driver (DKMS)
+	source = koppie-driver-manager-1.0.0.tar.gz::https://raw.githubusercontent.com/maularaihan-git/koppie-repo/main/pkg-sources/koppie-driver-manager/koppie-driver-manager-1.0.0.tar.gz
+	sha256sums = 6cb16344ffa9d38e0d39c9ede2a2bca3e9cbfc3b32487ceae9f4db2433bcda28
+
+pkgname = koppie-driver-manager

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Koppie Software Centre
+GenericName=Software Manager
+Comment=Find, install and update apps
+Exec=koppie-software-centre
+Icon=koppie-software-centre
+Terminal=false
+Categories=System;PackageManager;Settings;
+Keywords=software;apps;store;install;update;flatpak;aur;pacman;
+StartupNotify=true
+StartupWMClass=koppie-software-centre

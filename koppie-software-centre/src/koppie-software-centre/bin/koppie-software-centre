@@ -1,0 +1,4 @@
+#!/bin/sh
+# Launcher for Koppie Software Centre
+export PYTHONPATH="/usr/local/lib/koppie-software-centre${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m koppie_sc "$@"

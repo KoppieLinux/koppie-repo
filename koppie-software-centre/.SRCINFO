@@ -1,0 +1,18 @@
+pkgbase = koppie-software-centre
+	pkgdesc = Light GNOME Software-style app store for pacman, AUR and Flatpak
+	pkgver = 0.3
+	pkgrel = 1
+	url = https://github.com/maularaihan-git/koppie-repo
+	arch = any
+	license = GPL
+	depends = python
+	depends = python-pyqt6
+	depends = polkit
+	depends = flatpak
+	depends = pacman-contrib
+	depends = archlinux-appstream-data
+	optdepends = yay: search and install AUR packages
+	source = koppie-software-centre-0.3.tar.gz::https://raw.githubusercontent.com/maularaihan-git/koppie-repo/main/pkg-sources/koppie-software-centre/koppie-software-centre-0.3.tar.gz
+	sha256sums = 62e859b41b7cfd650b41c1896b37b4a341c41d8a27bf7545af10e0445fe1469d
+
+pkgname = koppie-software-centre

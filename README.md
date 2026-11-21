@@ -62,6 +62,30 @@ three packages. Re-run it any time you bump a version.
 - The AUR packages carry the **same names** as your `koppie` repo packages, so
   they replace each other cleanly instead of conflicting.
 
+## 🤖 CI: build package aarch64 (calamares, yay)
+
+Package yang binary-nya arch-specific tidak bisa di-copy dari `x86_64/` — harus
+di-compile ulang per arsitektur, sama seperti Ubuntu (buildds) dan Fedora (Koji)
+yang membangun calamares untuk arm64/aarch64.
+
+`.github/workflows/build-aarch64.yml` melakukan itu di **GitHub Actions runner
+`ubuntu-24.04-arm`** (gratis & unlimited untuk repo public):
+
+1. Unduh rootfs Arch Linux ARM, ekstrak jadi chroot (native arm64, tanpa QEMU).
+2. Ambil PKGBUILD dari AUR (`calamares`, `yay`), build dengan `makepkg -A -s`
+   sebagai user non-root.
+3. Salin hasilnya ke `aarch64/`, regen index dengan `repo-add`, lalu ubah
+   `koppie.db`/`koppie.files` dari symlink menjadi file asli (lihat bagian
+   bawah) — tanpa ini pacman tetap tidak bisa membaca repo.
+4. Commit & push.
+
+Jalankan manual dari tab **Actions → Build aarch64 packages → Run workflow**.
+Input `packages` bisa diisi nama package AUR lain, dipisah spasi.
+
+> `-A` diperlukan karena PKGBUILD `calamares` hanya mencantumkan
+> `arch=('i686' 'x86_64')`. Dengan `-A`, makepkg tetap menulis
+> `arch = aarch64` (CARCH) ke `.PKGINFO`, jadi paketnya valid untuk ARM.
+
 ## ⚠️ Repo index must be regular files, never symlinks
 
 `aarch64/` and `x86_64/` are served as a pacman repository over

@@ -1,0 +1,172 @@
+name: Build aarch64 packages
+
+# Setara "Koji"/"buildds"-nya Fedora-Ubuntu, versi mini:
+# build package yang butuh arsitektur aarch64 (calamares, yay) di runner arm64
+# native, di dalam chroot Arch Linux ARM — lingkungan build = rootfs target,
+# jadi dijamin kompatibel. Hasilnya dimasukkan ke aarch64/ dan index-nya diregen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Nama package (sesuai AUR), dipisah spasi"
+        required: false
+        default: "calamares yay"
+
+permissions:
+  contents: write
+
+# Jangan biarkan dua run berebut repo yang sama
+concurrency:
+  group: build-aarch64-packages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build di chroot ALARM (native arm64)
+    runs-on: ubuntu-24.04-arm   # arm64, 4 CPU / 16 GB — gratis & unlimited utk repo public
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Siapkan bsdtar
+        run: |
+          set -euo pipefail
+          # bsdtar dipakai biar xattr (file capability) rootfs ikut ter-eksak;
+          # GNU tar tidak mem-preserve-nya secara default.
+          if ! command -v bsdtar >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libarchive-tools
+          fi
+          bsdtar --version | head -1
+
+      - name: Unduh rootfs Arch Linux ARM
+        run: |
+          set -euo pipefail
+          wget -q -c "http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz" \
+            -O rootfs.tar.gz
+          ls -lh rootfs.tar.gz
+
+      - name: Siapkan chroot ALARM
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /alarm
+          sudo bsdtar -xpf rootfs.tar.gz -C /alarm
+
+          # resolv.conf rootfs bisa berupa symlink ke systemd-resolved yang tidak
+          # ada di chroot — pakai --remove-destination supaya DNS tetap jalan.
+          sudo rm -f /alarm/etc/resolv.conf
+          sudo cp --remove-destination /etc/resolv.conf /alarm/etc/resolv.conf
+
+          # /proc /sys /dev dibutuhkan pacman-key dan makepkg
+          for m in proc sys dev; do
+            sudo mount --bind "/$m" "/alarm/$m"
+          done
+
+          sudo chroot /alarm pacman-key --init
+          sudo chroot /alarm pacman-key --populate archlinuxarm
+          sudo chroot /alarm pacman -Syu --noconfirm \
+            base-devel git sudo pacman-contrib
+
+      - name: Buat user build (makepkg menolak jalan sebagai root)
+        run: |
+          set -euo pipefail
+          sudo chroot /alarm useradd -m -s /bin/bash builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' \
+            | sudo tee /alarm/etc/sudoers.d/builder >/dev/null
+          sudo chmod 440 /alarm/etc/sudoers.d/builder
+
+      - name: Ambil PKGBUILD dari AUR
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          mkdir -p pkgs
+          for p in $PACKAGES; do
+            mkdir -p "pkgs/$p"
+            echo "==> PKGBUILD $p"
+            curl -fsSL "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=$p" \
+              -o "pkgs/$p/PKGBUILD"
+            grep -E '^(pkgname|pkgver|pkgrel|arch)=' "pkgs/$p/PKGBUILD"
+          done
+
+      - name: Build dengan makepkg
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /alarm/home/builder/pkgs
+          sudo cp -r pkgs/. /alarm/home/builder/pkgs/
+          sudo chroot /alarm chown -R builder:builder /home/builder
+
+          for p in $PACKAGES; do
+            echo "==> Building $p"
+            # -A : PKGBUILD calamares hanya mencantumkan i686/x86_64, tapi
+            #      .PKGINFO tetap ditulis dengan CARCH (aarch64) — sudah diverifikasi.
+            # -s : pasang dependensi sendiri lewat sudo (sudah NOPASSWD di atas)
+            sudo chroot /alarm sudo -u builder -H bash -c \
+              "cd /home/builder/pkgs/$p && makepkg -A -s --noconfirm --cleanbuild --clean"
+          done
+
+      - name: Kumpulkan paket hasil build
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          sudo cp /alarm/home/builder/pkgs/*/*.pkg.tar.* out/
+          sudo chown "$(id -u):$(id -g)" out/*
+          ls -lh out/
+
+      - name: Masukkan ke aarch64/ dan regen index repo
+        run: |
+          set -euo pipefail
+          cp out/*.pkg.tar.* aarch64/
+
+          # repo-add harus jalan di dalam chroot (repo-add hanya ada di Arch)
+          sudo mkdir -p /alarm/repo
+          sudo mount --bind "$GITHUB_WORKSPACE/aarch64" /alarm/repo
+          sudo chroot /alarm bash -c \
+            'repo-add /repo/koppie.db.tar.gz /repo/*.pkg.tar.zst'
+
+          # repo-add SELALU membuat koppie.db/koppie.files sebagai symlink, dan
+          # raw.githubusercontent.com tidak mengikuti symlink (pacman dapat teks
+          # 16 byte). Wajib diubah jadi file asli — lihat README repo ini.
+          rm -f aarch64/koppie.db aarch64/koppie.files
+          cp aarch64/koppie.db.tar.gz    aarch64/koppie.db
+          cp aarch64/koppie.files.tar.gz aarch64/koppie.files
+
+          echo "=== isi index aarch64:"
+          tar -tzf aarch64/koppie.db.tar.gz | grep '/desc$' | sed 's|/desc||'
+
+      - name: Upload artefak build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-packages
+          path: out/*.pkg.tar.*
+          if-no-files-found: ignore
+
+      - name: Commit & push
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add aarch64/
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan untuk di-push."
+          else
+            git commit -m "chore(aarch64): build ${PACKAGES} via CI"
+            git push
+          fi
+
+      - name: Lepas mount chroot
+        if: always()
+        run: |
+          for m in repo dev sys proc; do
+            if mountpoint -q "/alarm/$m"; then
+              sudo umount -l "/alarm/$m"
+            fi
+          done

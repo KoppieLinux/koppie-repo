@@ -1,0 +1,4 @@
+# Artefak workflow build-aarch64 (jangan pernah ke-commit — rootfs-nya 791 MB)
+rootfs.tar.gz
+pkgs/
+out/

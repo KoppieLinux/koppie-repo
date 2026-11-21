@@ -61,3 +61,23 @@ three packages. Re-run it any time you bump a version.
   (AUR search turns off automatically without it).
 - The AUR packages carry the **same names** as your `koppie` repo packages, so
   they replace each other cleanly instead of conflicting.
+
+## ⚠️ Repo index must be regular files, never symlinks
+
+`aarch64/` and `x86_64/` are served as a pacman repository over
+`raw.githubusercontent.com`. That host does **not** follow symlinks — it returns
+the link target as plain text — so when `koppie.db` / `koppie.files` are
+symlinks, pacman receives a 16-byte text file (`koppie.db.tar.gz`) and dies with
+*failed to retrieve file / invalid database*.
+
+`repo-add` recreates them as symlinks by default, so run this after every
+`repo-add` before committing:
+
+```bash
+for d in aarch64 x86_64; do
+  rm -f "$d/koppie.db" "$d/koppie.files"
+  cp "$d/koppie.db.tar.gz"   "$d/koppie.db"
+  cp "$d/koppie.files.tar.gz" "$d/koppie.files"
+done
+git add aarch64/koppie.db aarch64/koppie.files x86_64/koppie.db x86_64/koppie.files
+```
